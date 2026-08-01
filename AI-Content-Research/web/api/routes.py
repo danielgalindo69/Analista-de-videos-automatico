@@ -63,14 +63,14 @@ async def search_youtube(req: SearchRequest):
         "total": len(items),
         "videos": [
             {
-                "id": v.id,
-                "title": v.title,
-                "url": v.url,
-                "channel": v.author_name,
+                "id": str(v.id),
+                "title": str(v.title),
+                "url": str(v.url) if v.url else "",
+                "channel": str(v.author_name or ""),
                 "views": v.get_meta("view_count", 0),
-                "duration_text": v.get_meta("duration_text", ""),
+                "duration_text": str(v.get_meta("duration_text", "")),
                 "duration_seconds": v.get_meta("duration_seconds", 0),
-                "is_short": v.get_meta("is_short", False),
+                "is_short": bool(v.get_meta("is_short", False)),
             }
             for v in items
         ],
@@ -86,7 +86,7 @@ async def analyze_youtube(req: AnalyzeRequest):
 
     async def event_stream() -> AsyncIterator[str]:
         def sse(event: str, data: dict) -> str:
-            return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+            return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
         try:
             # Phase 1: Scraping
@@ -100,14 +100,14 @@ async def analyze_youtube(req: AnalyzeRequest):
 
             videos_payload = [
                 {
-                    "id": v.id,
-                    "title": v.title,
-                    "url": v.url,
-                    "channel": v.author_name,
+                    "id": str(v.id),
+                    "title": str(v.title),
+                    "url": str(v.url) if v.url else "",
+                    "channel": str(v.author_name or ""),
                     "views": v.get_meta("view_count", 0),
-                    "duration_text": v.get_meta("duration_text", ""),
+                    "duration_text": str(v.get_meta("duration_text", "")),
                     "duration_seconds": v.get_meta("duration_seconds", 0),
-                    "is_short": v.get_meta("is_short", False),
+                    "is_short": bool(v.get_meta("is_short", False)),
                 }
                 for v in items
             ]
