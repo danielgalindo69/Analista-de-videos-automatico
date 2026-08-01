@@ -6,7 +6,12 @@ independent of any specific platform or LLM implementation.
 """
 
 from datetime import datetime
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:
+    from enum import Enum
+    class StrEnum(str, Enum):
+        pass
 from pydantic import BaseModel, Field
 
 from core.models.content import ContentItem, Platform
