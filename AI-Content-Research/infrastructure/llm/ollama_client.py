@@ -216,11 +216,12 @@ class OllamaClient:
             LLMError: For timeout or other non-retryable HTTP errors
         """
         last_error: Exception | None = None
+        model_name = payload.get("model", "<unknown>")
 
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
                 response = await self._http.post(endpoint, json=payload)
-                self._raise_for_ollama_status(response)
+                self._raise_for_ollama_status(response, model=model_name)
                 return response.json()
 
             except LLMModelNotFoundError:
@@ -259,14 +260,12 @@ class OllamaClient:
             context={"url": self._base_url},
         ) from last_error
 
-    @staticmethod
-    def _raise_for_ollama_status(response: httpx.Response) -> None:
+    def _raise_for_ollama_status(self, response: httpx.Response, model: str = "<unknown>") -> None:
         """Translate HTTP errors into typed framework exceptions."""
         if response.status_code == 404:
-            # Extract model name from request body if available
-            raise LLMModelNotFoundError(model="<unknown>")
+            raise LLMModelNotFoundError(model=model)
         if response.status_code >= 400:
             raise LLMError(
                 f"Ollama returned HTTP {response.status_code}: {response.text}",
-                context={"status_code": response.status_code},
+                context={"status_code": response.status_code, "model": model},
             )

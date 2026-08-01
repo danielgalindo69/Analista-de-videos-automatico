@@ -26,17 +26,17 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OLLAMA_HOST=ollama
+      - OLLAMA_HOST=host.docker.internal
       - OLLAMA_PORT=11434
       - OLLAMA_NUM_GPU_LAYERS=-1
       - OLLAMA_TIMEOUT_SECONDS=300
       - LLM_EXTRACTION_MODEL=qwen3:14b
       - LLM_REASONING_MODEL=deepseek-r1:8b
       - BROWSER_HEADLESS=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./output:/app/output
-    depends_on:
-      - ollama
     restart: unless-stopped
 
   # ── 3. Nginx + React Frontend ─────────────────────────────────────────────
