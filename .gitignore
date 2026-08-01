@@ -1,0 +1,69 @@
+# ============================================================
+# Git Ignore Configuration — AI Content Research Framework
+# ============================================================
+
+# --- Python & Virtual Environments ---
+.venv/
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Byte-compiled / optimized / DLL files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Environment & Configuration Secrets ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Application Outputs & Logs ---
+output/
+logs/
+*.log
+AI-Content-Research/output/
+AI-Content-Research/logs/
+
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.nox/
+.tox/
+
+# --- IDEs & Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# --- Operating System Files ---
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
+desktop.ini
+
+# --- Playwright Browsers / Artifacts ---
+.playwright/
+ms-playwright/

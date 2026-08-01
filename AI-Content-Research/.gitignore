@@ -1,0 +1,21 @@
+# Python & Environments
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Secrets & Configuration
+.env
+!.env.example
+
+# Outputs & Logs
+output/
+logs/
+*.log
+
+# Testing & IDEs
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
