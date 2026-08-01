@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ── 1. Ollama LLM Engine ───────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: research_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+    restart: unless-stopped
+    # Enable NVIDIA GPU if available on host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ── 2. FastAPI Backend + Playwright ───────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: research_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=ollama
+      - OLLAMA_PORT=11434
+      - OLLAMA_NUM_GPU_LAYERS=-1
+      - OLLAMA_TIMEOUT_SECONDS=300
+      - LLM_EXTRACTION_MODEL=qwen3:14b
+      - LLM_REASONING_MODEL=deepseek-r1:8b
+      - BROWSER_HEADLESS=true
+    volumes:
+      - ./output:/app/output
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  # ── 3. Nginx + React Frontend ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: research_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  ollama_storage:

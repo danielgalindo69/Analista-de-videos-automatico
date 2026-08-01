@@ -1,0 +1,22 @@
+# Dockerfile for Backend API (FastAPI + Playwright)
+FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
+
+WORKDIR /app
+
+# Prevent Python from writing .pyc files & buffer stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir fastapi uvicorn[standard]
+
+# Copy project source code
+COPY . .
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Start Uvicorn server
+CMD ["uvicorn", "web.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
