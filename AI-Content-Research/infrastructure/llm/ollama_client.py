@@ -46,9 +46,15 @@ class OllamaClient:
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> "OllamaClient":
+        # Use granular timeouts: short connect (5s), long read for LLM inference.
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
-            timeout=httpx.Timeout(self._timeout),
+            timeout=httpx.Timeout(
+                connect=5.0,
+                read=float(self._timeout),  # e.g. 300s for 14B model inference
+                write=30.0,
+                pool=5.0,
+            ),
         )
         return self
 
@@ -175,14 +181,17 @@ class OllamaClient:
 
     def _build_generate_payload(self, model: str, request: LLMRequest) -> dict:
         """Build the JSON payload for /api/generate."""
+        options: dict = {
+            "temperature": request.temperature,
+        }
+        if self._num_gpu_layers is not None and self._num_gpu_layers >= 0:
+            options["num_gpu"] = self._num_gpu_layers
+
         payload: dict = {
             "model": model,
             "prompt": request.prompt,
             "stream": False,
-            "options": {
-                "temperature": request.temperature,
-                "num_gpu": self._num_gpu_layers,
-            },
+            "options": options,
         }
         if request.system_prompt:
             payload["system"] = request.system_prompt
@@ -194,10 +203,17 @@ class OllamaClient:
         """
         POST to an Ollama endpoint with exponential backoff retry.
 
+        Retry strategy:
+        - ConnectError → retryable (Ollama may be starting up)
+        - ReadTimeout  → NOT retryable (model is running but slow — increase
+                         OLLAMA_TIMEOUT_SECONDS in .env instead of retrying)
+        - LLMModelNotFoundError → NOT retryable
+        - LLMError (HTTP 4xx/5xx) → NOT retryable
+
         Raises:
-            LLMConnectionError: After all retries exhausted due to network error
+            LLMConnectionError: After all retries exhausted due to connection error
             LLMModelNotFoundError: If 404 received (model not pulled)
-            LLMError: For other non-retryable HTTP errors
+            LLMError: For timeout or other non-retryable HTTP errors
         """
         last_error: Exception | None = None
 
@@ -208,15 +224,28 @@ class OllamaClient:
                 return response.json()
 
             except LLMModelNotFoundError:
-                raise  # Never retry on missing model
+                raise  # Never retry
 
-            except (httpx.ConnectError, httpx.TimeoutException) as e:
+            except httpx.ReadTimeout as e:
+                # ReadTimeout = Ollama is alive but took too long to respond.
+                # Retrying would just queue the same heavy prompt again.
+                # Solution: increase OLLAMA_TIMEOUT_SECONDS in .env
+                raise LLMError(
+                    f"Ollama inference timed out after {self._timeout}s. "
+                    "The model is running but the response is taking too long. "
+                    "Increase OLLAMA_TIMEOUT_SECONDS in your .env file "
+                    "(e.g. OLLAMA_TIMEOUT_SECONDS=600) or reduce --max results.",
+                    context={"timeout_s": self._timeout, "url": self._base_url},
+                ) from e
+
+            except httpx.ConnectError as e:
+                # ConnectError = Ollama is not reachable (not started, wrong port)
                 last_error = e
                 if attempt < _MAX_RETRIES:
                     delay = _RETRY_BASE_DELAY_S * (2 ** (attempt - 1))
                     logger.warning(
-                        "Ollama request failed (attempt {attempt}/{max}). "
-                        "Retrying in {delay}s. Error: {error}",
+                        "Ollama connection failed (attempt {attempt}/{max}). "
+                        "Retrying in {delay}s. Is Ollama running? Error: {error}",
                         attempt=attempt,
                         max=_MAX_RETRIES,
                         delay=delay,
@@ -225,7 +254,8 @@ class OllamaClient:
                     await asyncio.sleep(delay)
 
         raise LLMConnectionError(
-            f"Ollama unreachable after {_MAX_RETRIES} attempts.",
+            f"Cannot connect to Ollama after {_MAX_RETRIES} attempts. "
+            "Make sure Ollama is running: ollama serve",
             context={"url": self._base_url},
         ) from last_error
 
