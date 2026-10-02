@@ -107,6 +107,9 @@ class YouTubeSearchExtractor:
             # Duration badge
             badge_elem = await node.query_selector("ytd-thumbnail-overlay-time-status-renderer, #length")
             duration_text = (await badge_elem.inner_text()).strip() if badge_elem else ""
+            # YouTube's badge element sometimes returns the time twice (e.g. "1:13:57 1:13:57").
+            # Deduplicate: grab the first token that looks like a time string (contains ":").
+            duration_text = _deduplicate_duration(duration_text)
             duration_seconds = parse_duration_seconds(duration_text)
             is_short = "SHORT" in duration_text.upper() or (0 < duration_seconds <= 60)
 
@@ -130,6 +133,29 @@ class YouTubeSearchExtractor:
         except Exception as e:
             logger.debug("YouTubeExtractor | Node parse error: {e}", e=str(e))
             return None
+
+
+def _deduplicate_duration(text: str) -> str:
+    """
+    Fix YouTube badge returning duration twice, e.g. '1:13:57 1:13:57' or 'SHORT SHORT'.
+    Returns the first distinct time-like token, or the original stripped text.
+    """
+    if not text:
+        return text
+    # Split into words and find the first token that contains a digit+colon pattern
+    tokens = text.split()
+    seen: list[str] = []
+    for t in tokens:
+        if t not in seen:
+            seen.append(t)
+    # If all unique: nothing was duplicated → return joined
+    # If duplicates removed: use the de-duped version
+    candidate = " ".join(seen)
+    # Prefer just the first time-looking token (contains ":")
+    for t in seen:
+        if ":" in t and re.match(r"^\d+:\d+", t):
+            return t
+    return candidate
 
 
 def parse_view_count(text: str) -> int:

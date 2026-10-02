@@ -208,6 +208,7 @@ class OllamaClient:
         - ReadTimeout  → NOT retryable (model is running but slow — increase
                          OLLAMA_TIMEOUT_SECONDS in .env instead of retrying)
         - LLMModelNotFoundError → NOT retryable
+        - LLMError with cuda_crash=True → ONE retry with num_gpu=0 (CPU fallback)
         - LLMError (HTTP 4xx/5xx) → NOT retryable
 
         Raises:
@@ -226,6 +227,21 @@ class OllamaClient:
 
             except LLMModelNotFoundError:
                 raise  # Never retry
+
+            except LLMError as e:
+                # CUDA crash: retry ONCE with CPU-only mode (num_gpu=0)
+                if e.context and e.context.get("cuda_crash") and attempt == 1:
+                    logger.warning(
+                        "CUDA crash on attempt {attempt}. Retrying with num_gpu=0 (CPU mode)...",
+                        attempt=attempt,
+                    )
+                    # Force CPU mode for this request
+                    cpu_payload = {**payload}
+                    cpu_payload["options"] = {**payload.get("options", {}), "num_gpu": 0}
+                    response = await self._http.post(endpoint, json=cpu_payload)
+                    self._raise_for_ollama_status(response, model=model_name)
+                    return response.json()
+                raise  # Other LLM errors are not retryable
 
             except httpx.ReadTimeout as e:
                 # ReadTimeout = Ollama is alive but took too long to respond.
@@ -260,12 +276,25 @@ class OllamaClient:
             context={"url": self._base_url},
         ) from last_error
 
+
     def _raise_for_ollama_status(self, response: httpx.Response, model: str = "<unknown>") -> None:
         """Translate HTTP errors into typed framework exceptions."""
         if response.status_code == 404:
             raise LLMModelNotFoundError(model=model)
         if response.status_code >= 400:
+            body = response.text
+            # Detect CUDA crash: Ollama returns 500 when llama-server crashes due to GPU error.
+            # We surface this as a special LLMError so callers can retry in CPU mode.
+            if response.status_code == 500 and (
+                "cuda error" in body.lower() or "exit status 0xc0000409" in body.lower()
+            ):
+                raise LLMError(
+                    f"Ollama CUDA crash detected (llama-server exited). "
+                    "Retrying in CPU-only mode (num_gpu=0)...",
+                    context={"status_code": 500, "model": model, "cuda_crash": True},
+                )
             raise LLMError(
-                f"Ollama returned HTTP {response.status_code}: {response.text}",
+                f"Ollama returned HTTP {response.status_code}: {body}",
                 context={"status_code": response.status_code, "model": model},
             )
+
