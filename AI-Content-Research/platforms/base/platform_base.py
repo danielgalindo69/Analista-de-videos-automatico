@@ -24,7 +24,6 @@ from loguru import logger
 from core.interfaces.base_platform import BasePlatform
 from core.models.content import ContentItem, Platform
 from infrastructure.browser.playwright_manager import PlaywrightManager
-from infrastructure.llm.ollama_client import OllamaClient
 from infrastructure.llm.router import LLMRouter
 from infrastructure.storage.file_storage import FileStorage
 from prompts.registry import PromptRegistry
@@ -54,14 +53,12 @@ class PlatformBase(BasePlatform[T], Generic[T]):
     def __init__(
         self,
         browser: PlaywrightManager | None = None,
-        llm_client: OllamaClient | None = None,
         router: LLMRouter | None = None,
         storage: FileStorage | None = None,
         prompts: PromptRegistry | None = None,
     ) -> None:
         # Lazy-initialized defaults: only created if not injected
         self._browser = browser or PlaywrightManager()
-        self._llm_client = llm_client or OllamaClient()
         self._router = router or LLMRouter()
         self._storage = storage or FileStorage()
         self._prompts = prompts or PromptRegistry()
@@ -110,8 +107,7 @@ class PlatformBase(BasePlatform[T], Generic[T]):
         Verify platform is reachable by checking LLM and browser availability.
         Subclasses can override to add platform-specific URL checks.
         """
-        async with OllamaClient() as client:
-            llm_ok = await client.health_check()
+        llm_ok = await self._router.health_check()
         if not llm_ok:
             self.log("warning", "LLM health check failed")
             return False

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Header } from './components/Header'
+import { ProviderSettings } from './components/ProviderSettings'
 import { ResearchForm } from './components/ResearchForm'
 import { EmptyState, ErrorNotice, PipelineCard, ProgressPanel, ReportWorkspace } from './components/Workspace'
 import { Icon } from './components/Icon'
@@ -6,12 +8,14 @@ import { useAnalysisStream } from './hooks/useAnalysisStream'
 import { useSystemInfo } from './hooks/useSystemInfo'
 
 export default function App() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const system = useSystemInfo()
   const analysis = useAnalysisStream()
 
   return (
     <div className="app">
-      <Header status={system.status} />
+      <Header status={system.status} providerLabel={system.info.provider_label} onOpenSettings={() => setSettingsOpen(true)} />
+      <ProviderSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={system.refresh} />
       <main id="main">
         <section className="research-hero">
           <div className="shell research-hero__grid">
@@ -42,7 +46,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <div className="shell footer__inner"><span>AI Content Research</span><span><Icon name="lock" size={14} /> Privado por diseño · Procesamiento local</span></div>
+        <div className="shell footer__inner"><span>AI Content Research</span><span><Icon name={system.info.processing_local === false ? 'cloud' : 'lock'} size={14} /> {system.info.processing_local === false ? 'Proveedor cloud activo · Revisa la privacidad antes de analizar' : 'Privado por diseño · Procesamiento local'}</span></div>
       </footer>
     </div>
   )

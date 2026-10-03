@@ -8,7 +8,6 @@ from core.interfaces.base_analyzer import BaseAnalyzer
 from core.models.analysis import AnalysisRequest, AnalysisResult, Finding, AnalysisStatus
 from core.models.content import ContentItem
 from core.models.llm import TaskType, LLMRequest
-from infrastructure.llm.ollama_client import OllamaClient
 from infrastructure.llm.router import LLMRouter
 from prompts.registry import PromptRegistry
 
@@ -79,8 +78,7 @@ class YouTubeTrendAnalyzer(BaseAnalyzer):
             temperature=0.4,
         )
 
-        async with OllamaClient() as client:
-            llm_resp = await self._router.route(llm_req, client)
+        llm_resp = await self._router.route(llm_req)
 
         finding = Finding(
             title="Market Trends & Niche Opportunities",

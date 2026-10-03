@@ -1,126 +1,53 @@
-"""
-LLM Router — Selects the correct model based on TaskType.
-
-Design decision: Model selection logic lives in ONE place.
-No other module should contain "if task == REASONING: use deepseek" logic.
-When adding a new model or reassigning task categories, only this file changes.
-
-The router is stateless — it reads from settings and returns model names.
-
-Extending:
-    1. Add a new TaskType to core/models/llm.py
-    2. Add the mapping in _build_map() below
-    3. Done — no other files need to change
-"""
-
-import time
+"""Provider-neutral routing of LLM tasks to configured models."""
 
 from loguru import logger
 
-from config.settings import get_settings
-from core.models.llm import TaskType, LLMRequest, LLMResponse
-from core.exceptions import LLMError
-from infrastructure.llm.ollama_client import OllamaClient
+from core.models.llm import LLMRequest, LLMResponse, TaskType
+from core.models.provider import ProviderRoute
+from infrastructure.llm.configuration import LLMConfigurationStore
+from infrastructure.llm.provider_registry import ProviderRegistry
+from infrastructure.llm.runtime import get_llm_configuration, get_provider_registry
 
 
 class LLMRouter:
-    """
-    Routes LLM requests to the appropriate model based on TaskType.
+    """Resolve task routes without leaking provider details into analyzers."""
 
-    Usage:
-        router = LLMRouter()
-        async with OllamaClient() as client:
-            response = await router.route(request, client)
-    """
+    def __init__(
+        self,
+        registry: ProviderRegistry | None = None,
+        configuration: LLMConfigurationStore | None = None,
+    ) -> None:
+        self._registry = registry or get_provider_registry()
+        self._configuration = configuration or get_llm_configuration()
 
-    def __init__(self) -> None:
-        settings = get_settings()
-        self._extraction_model = settings.models.extraction_model
-        self._reasoning_model = settings.models.reasoning_model
-        self._task_model_map: dict[TaskType, str] = self._build_map()
-
-    def _build_map(self) -> dict[TaskType, str]:
-        """
-        Maps each TaskType to a model name.
-
-        Qwen3 14B  → extraction, classification, summarization,
-                      tool calling, comparison, report generation
-        DeepSeek R1 8B → reasoning, pattern detection,
-                          hypothesis validation, trend analysis
-        """
-        return {
-            # Qwen3 14B — fast extraction and structured output
-            TaskType.EXTRACTION: self._extraction_model,
-            TaskType.CLASSIFICATION: self._extraction_model,
-            TaskType.SUMMARIZATION: self._extraction_model,
-            TaskType.TOOL_CALLING: self._extraction_model,
-            TaskType.COMPARISON: self._extraction_model,
-            TaskType.REPORT_GENERATION: self._extraction_model,
-            # DeepSeek R1 8B — deep reasoning and pattern analysis
-            TaskType.REASONING: self._reasoning_model,
-            TaskType.PATTERN_DETECTION: self._reasoning_model,
-            TaskType.HYPOTHESIS_VALIDATION: self._reasoning_model,
-            TaskType.TREND_ANALYSIS: self._reasoning_model,
-        }
+    def resolve_route(self, task_type: TaskType) -> ProviderRoute:
+        route = self._configuration.resolve(task_type)
+        logger.debug(
+            "LLMRouter | task={task} provider={provider} model={model}",
+            task=task_type,
+            provider=route.provider_id,
+            model=route.model,
+        )
+        return route
 
     def resolve_model(self, task_type: TaskType) -> str:
-        """
-        Return the model name for the given TaskType.
+        """Compatibility shortcut used by diagnostics."""
+        return self.resolve_route(task_type).model
 
-        Raises:
-            LLMError: If task_type has no mapping defined in _build_map()
-        """
-        model = self._task_model_map.get(task_type)
-        if not model:
-            raise LLMError(
-                f"No model mapping for TaskType '{task_type}'. "
-                "Add it to LLMRouter._build_map().",
-                context={"task_type": task_type},
-            )
-        logger.debug(
-            "LLMRouter | task={task} → model={model}",
-            task=task_type,
-            model=model,
-        )
-        return model
+    async def route(self, request: LLMRequest) -> LLMResponse:
+        route = self.resolve_route(request.task_type)
+        provider = self._registry.get(route.provider_id)
+        return await provider.generate(route.model, request)
 
-    async def route(self, request: LLMRequest, client: OllamaClient) -> LLMResponse:
-        """
-        Primary entry point for all LLM calls in the framework.
-        Resolves the model and executes the request via the given client.
-
-        Callers should never call OllamaClient directly — always go through route().
-
-        Args:
-            request: LLMRequest with task_type and prompt
-            client: Active OllamaClient (must be inside async context manager)
-
-        Returns:
-            LLMResponse from the resolved model
-        """
-        model = self.resolve_model(request.task_type)
-        payload = client._build_generate_payload(model, request)
-
-        start_ms = int(time.monotonic() * 1000)
-        raw = await client._post_with_retry("/api/generate", payload)
-        duration_ms = int(time.monotonic() * 1000) - start_ms
-
-        return LLMResponse(
-            content=raw.get("response", ""),
-            model_used=model,
-            task_type=request.task_type,
-            tokens_prompt=raw.get("prompt_eval_count", 0),
-            tokens_completion=raw.get("eval_count", 0),
-            duration_ms=duration_ms,
-            request_id=request.request_id,
-        )
+    async def health_check(self) -> bool:
+        route = self.resolve_route(TaskType.EXTRACTION)
+        health = await self._registry.get(route.provider_id).health()
+        return health.available
 
     def get_model_summary(self) -> dict[str, list[str]]:
-        """
-        Returns which tasks each model handles.
-        Used by CLI diagnostics and health checks.
-        """
         summary: dict[str, list[str]] = {}
-        for task, model in self._task_model_map.items():
-            summary.setdefault(model, []).append(task)
+        for task in TaskType:
+            route = self.resolve_route(task)
+            key = f"{route.provider_id}:{route.model}"
+            summary.setdefault(key, []).append(task.value)
         return summary

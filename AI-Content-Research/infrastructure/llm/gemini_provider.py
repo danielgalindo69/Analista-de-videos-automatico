@@ -55,7 +55,7 @@ class GeminiProvider(LLMProvider):
     async def list_models(self) -> list[ModelInfo]:
         try:
             async with self._client() as client:
-                response = await client.get("/models", params={"pageSize": 1000})
+                response = await client.get("models", params={"pageSize": 1000})
             self._raise_for_status(response)
         except httpx.RequestError as error:
             raise LLMConnectionError(
@@ -97,7 +97,7 @@ class GeminiProvider(LLMProvider):
         try:
             async with self._client() as client:
                 response = await client.post(
-                    f"/models/{quote(model_id, safe='')}:generateContent",
+                    f"models/{quote(model_id, safe='')}:generateContent",
                     json=payload,
                 )
             self._raise_for_status(response)

@@ -10,18 +10,22 @@ function SkeletonText() {
 export function PipelineCard({ info, status }) {
   const extractionModel = info.extraction_model || 'Qwen3 14B'
   const reasoningModel = info.reasoning_model || 'DeepSeek R1 8B'
+  const extractionProvider = info.extraction_provider_name || 'Ollama'
+  const reasoningProvider = info.reasoning_provider_name || 'Ollama'
+  const providerLabel = info.provider_label || 'Ollama'
+  const isLocal = info.processing_local !== false
   return (
     <aside className="pipeline-card" aria-label="Configuración del análisis">
       <div className="pipeline-card__header">
         <div><span className="section-kicker">Motor activo</span><h2>Flujo de análisis local</h2></div>
-        <span className={`provider-chip provider-chip--${status}`}><Icon name="server" size={15} /> Ollama</span>
+        <span className={`provider-chip provider-chip--${status}`}><Icon name={isLocal ? 'server' : 'cloud'} size={15} /> {providerLabel}</span>
       </div>
       <ol className="pipeline">
         <li><span className="pipeline__index">01</span><span><strong>Explorar</strong><small>Metadatos públicos de YouTube</small></span><Icon name="youtube" size={19} /></li>
-        <li><span className="pipeline__index">02</span><span><strong>Leer patrones</strong><small>{extractionModel}</small></span><Icon name="brain" size={19} /></li>
-        <li><span className="pipeline__index">03</span><span><strong>Detectar oportunidades</strong><small>{reasoningModel}</small></span><Icon name="trend" size={19} /></li>
+        <li><span className="pipeline__index">02</span><span><strong>Leer patrones</strong><small>{extractionProvider} · {extractionModel}</small></span><Icon name="brain" size={19} /></li>
+        <li><span className="pipeline__index">03</span><span><strong>Detectar oportunidades</strong><small>{reasoningProvider} · {reasoningModel}</small></span><Icon name="trend" size={19} /></li>
       </ol>
-      <div className="privacy-note"><Icon name="lock" size={16} /> Tus datos y prompts permanecen en este equipo.</div>
+      <div className="privacy-note"><Icon name={isLocal ? 'lock' : 'cloud'} size={16} /> {isLocal ? 'Tus datos y prompts permanecen en este equipo.' : 'Los prompts se enviarán a los proveedores cloud seleccionados.'}</div>
     </aside>
   )
 }

@@ -16,6 +16,8 @@ services:
       - OLLAMA_TIMEOUT_SECONDS=300
       - LLM_EXTRACTION_MODEL=qwen3:14b
       - LLM_REASONING_MODEL=deepseek-r1:8b
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_TIMEOUT_SECONDS=120
       - BROWSER_HEADLESS=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
