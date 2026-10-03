@@ -12,7 +12,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from datetime import datetime
 from platforms.youtube.models import YouTubeVideo, YouTubeChannel
-from platforms.youtube.extractors.search_extractor import parse_view_count, parse_duration_seconds
+from platforms.youtube.extractors.search_extractor import (
+    calculate_views_per_day,
+    extract_published_text,
+    parse_duration_seconds,
+    parse_relative_published_at,
+    parse_view_count,
+)
 from platforms.youtube.youtube_platform import YouTubePlatform
 from analysis.youtube.title_analyzer import YouTubeTitleAnalyzer
 from analysis.youtube.trend_analyzer import YouTubeTrendAnalyzer
@@ -23,7 +29,10 @@ def test_view_count_parsing():
     assert parse_view_count("1.5M views") == 1_500_000
     assert parse_view_count("450K vistas") == 450_000
     assert parse_view_count("1,234 views") == 1234
+    assert parse_view_count("1,5 M de visualizaciones") == 1_500_000
+    assert parse_view_count("2,3 mil visualizaciones") == 2_300
     assert parse_view_count("10B views") == 10_000_000_000
+    assert parse_view_count("hace 2 días") == 0
     print("[OK] view_count_parsing passed")
 
 
@@ -32,6 +41,23 @@ def test_duration_parsing():
     assert parse_duration_seconds("1:02:15") == 3735
     assert parse_duration_seconds("0:45") == 45
     print("[OK] duration_parsing passed")
+
+
+def test_relative_publication_parsing():
+    reference = datetime.fromisoformat("2026-10-02T12:00:00+00:00")
+
+    english_label = extract_published_text("1.5M views\n2 months ago")
+    spanish_label = extract_published_text("450 K visualizaciones\nhace 3 días")
+
+    assert english_label == "2 months ago"
+    assert spanish_label == "hace 3 días"
+    assert parse_relative_published_at(english_label, now=reference) == datetime.fromisoformat(
+        "2026-08-03T12:00:00+00:00"
+    )
+    published_at = parse_relative_published_at(spanish_label, now=reference)
+    assert calculate_views_per_day(90_000, published_at, now=reference) == 30_000
+    assert calculate_views_per_day(12_000, None, now=reference) is None
+    print("[OK] relative_publication_parsing passed")
 
 
 def test_youtube_video_model():
@@ -69,6 +95,7 @@ def test_youtube_platform_init():
 if __name__ == "__main__":
     test_view_count_parsing()
     test_duration_parsing()
+    test_relative_publication_parsing()
     test_youtube_video_model()
     test_youtube_platform_init()
     print("\nALL PHASE 2 UNIT TESTS PASSED SUCCESSFULLY!")

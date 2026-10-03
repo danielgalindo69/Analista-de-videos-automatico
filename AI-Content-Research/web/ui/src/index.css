@@ -139,6 +139,7 @@ a { color: inherit; }
 .video-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .video-title small { margin-left: 8px; padding: 2px 5px; border-radius: 4px; color: var(--amber); background: var(--amber-soft); font-size: 10px; text-transform: uppercase; }
 .number-cell { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.velocity-cell { color: var(--blue) !important; }
 .external-link { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; color: var(--text-muted); text-decoration: none; transition: color var(--ease), background var(--ease); }
 .external-link:hover { color: var(--text); background: var(--surface-hover); }
 

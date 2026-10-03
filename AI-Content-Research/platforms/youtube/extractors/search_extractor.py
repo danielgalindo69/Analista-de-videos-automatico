@@ -9,6 +9,7 @@ and relative view counts ('1.5M views', '250K views') to numbers.
 """
 
 import re
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 from playwright.async_api import Page
 
@@ -103,6 +104,10 @@ class YouTubeSearchExtractor:
             meta_text = (await meta_line.inner_text()) if meta_line else ""
 
             view_count = parse_view_count(meta_text)
+            published_text = extract_published_text(meta_text)
+            published_at = parse_relative_published_at(published_text)
+            age_days = calculate_age_days(published_at)
+            views_per_day = calculate_views_per_day(view_count, published_at)
             
             # Duration badge
             badge_elem = await node.query_selector("ytd-thumbnail-overlay-time-status-renderer, #length")
@@ -120,8 +125,12 @@ class YouTubeSearchExtractor:
                 title=title,
                 url=video_url,
                 author_name=channel_name,
+                published_at=published_at,
                 metadata={
                     "view_count": view_count,
+                    "published_text": published_text,
+                    "age_days": age_days,
+                    "views_per_day": views_per_day,
                     "duration_seconds": duration_seconds,
                     "duration_text": duration_text,
                     "channel_name": channel_name,
@@ -159,16 +168,26 @@ def _deduplicate_duration(text: str) -> str:
 
 
 def parse_view_count(text: str) -> int:
-    """Extract view count from strings like '1.5M views', '450K vistas', '1,234 views'."""
-    text_clean = text.lower().replace(",", "")
-    
-    match = re.search(r"(\d+(?:\.\d+)?)\s*([kmb])?", text_clean)
+    """Extract localized view counts without confusing publication age for views."""
+    match = re.search(
+        r"(?P<number>\d[\d.,]*)\s*(?P<unit>k|m|b|mil)?(?:\s+de)?\s*"
+        r"(?:views?|visualizaciones?|vistas?)",
+        text,
+        re.IGNORECASE,
+    )
     if not match:
         return 0
 
-    val = float(match.group(1))
-    unit = match.group(2)
-    if unit == "k":
+    number = match.group("number")
+    unit = (match.group("unit") or "").lower()
+    if unit:
+        # YouTube abbreviations use a decimal separator before K/M/B/mil.
+        val = float(number.replace(",", "."))
+    else:
+        # Exact view counts use punctuation as thousands separators.
+        val = float(number.replace(",", "").replace(".", ""))
+
+    if unit in {"k", "mil"}:
         val *= 1_000
     elif unit == "m":
         val *= 1_000_000
@@ -190,3 +209,120 @@ def parse_duration_seconds(text: str) -> int:
     elif len(parts) == 3:
         return parts[0] * 3600 + parts[1] * 60 + parts[2]
     return 0
+
+
+_RELATIVE_DATE_PATTERNS = (
+    re.compile(
+        r"(?:(?:streamed|premiered)\s+)?(?P<value>\d+)\s+"
+        r"(?P<unit>second|minute|hour|day|week|month|year)s?\s+ago",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:(?:emitido|transmitido|estrenado)\s+)?hace\s+(?P<value>\d+)\s+"
+        r"(?P<unit>segundo|minuto|hora|d[ií]a|semana|mes|a[ñn]o)(?:s|es)?",
+        re.IGNORECASE,
+    ),
+)
+
+_UNIT_SECONDS = {
+    "second": 1,
+    "segundo": 1,
+    "minute": 60,
+    "minuto": 60,
+    "hour": 3_600,
+    "hora": 3_600,
+    "day": 86_400,
+    "dia": 86_400,
+    "día": 86_400,
+    "week": 604_800,
+    "semana": 604_800,
+    "month": 2_592_000,
+    "mes": 2_592_000,
+    "year": 31_536_000,
+    "ano": 31_536_000,
+    "año": 31_536_000,
+}
+
+
+def extract_published_text(text: str) -> str | None:
+    """Return the relative publication label found in a YouTube metadata line."""
+    normalized = " ".join(text.split())
+    if not normalized:
+        return None
+
+    for pattern in _RELATIVE_DATE_PATTERNS:
+        match = pattern.search(normalized)
+        if match:
+            return match.group(0)
+
+    lowered = normalized.lower()
+    for label in ("today", "hoy", "yesterday", "ayer", "just now", "ahora mismo"):
+        if label in lowered:
+            return label
+    return None
+
+
+def parse_relative_published_at(
+    text: str | None,
+    *,
+    now: datetime | None = None,
+) -> datetime | None:
+    """
+    Convert YouTube's relative publication label into an estimated UTC datetime.
+
+    Month and year labels are necessarily approximate because search results do
+    not include an exact date. The original label is preserved in metadata.
+    """
+    if not text:
+        return None
+
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+
+    lowered = text.strip().lower()
+    if lowered in {"today", "hoy", "just now", "ahora mismo"}:
+        return reference
+    if lowered in {"yesterday", "ayer"}:
+        return reference - timedelta(days=1)
+
+    for pattern in _RELATIVE_DATE_PATTERNS:
+        match = pattern.search(lowered)
+        if not match:
+            continue
+        value = int(match.group("value"))
+        unit = match.group("unit").lower()
+        seconds = _UNIT_SECONDS.get(unit)
+        if seconds is None:
+            return None
+        return reference - timedelta(seconds=value * seconds)
+    return None
+
+
+def calculate_age_days(
+    published_at: datetime | None,
+    *,
+    now: datetime | None = None,
+) -> int | None:
+    """Return estimated whole age in days, using zero for content under 24 hours."""
+    if published_at is None:
+        return None
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=timezone.utc)
+    return max(0, int((reference - published_at).total_seconds() // 86_400))
+
+
+def calculate_views_per_day(
+    view_count: int,
+    published_at: datetime | None,
+    *,
+    now: datetime | None = None,
+) -> float | None:
+    """Calculate average views per day; use one day as the minimum denominator."""
+    age_days = calculate_age_days(published_at, now=now)
+    if age_days is None:
+        return None
+    return round(max(0, view_count) / max(1, age_days), 2)

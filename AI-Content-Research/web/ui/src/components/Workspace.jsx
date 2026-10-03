@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import { Icon } from './Icon'
-import { formatViews, getFriendlyError } from '../utils/formatters'
+import { formatPublished, formatViews, formatViewsPerDay, getFriendlyError } from '../utils/formatters'
 
 function SkeletonText() {
   return <div className="skeleton-copy" aria-label="Generando análisis">{[92, 72, 84, 55, 78].map((width) => <span key={width} style={{ width: `${width}%` }} />)}</div>
@@ -60,7 +60,7 @@ export function VideosTable({ videos }) {
       </div>
       <div className="videos-table-wrap">
         <table className="videos-table">
-          <thead><tr><th>Título</th><th>Canal</th><th>Vistas</th><th>Duración</th><th><span className="sr-only">Abrir</span></th></tr></thead>
+          <thead><tr><th>Título</th><th>Canal</th><th>Publicado</th><th>Vistas</th><th>Vistas/día</th><th>Duración</th><th><span className="sr-only">Abrir</span></th></tr></thead>
           <tbody>
             {videos.map((video) => (
               <tr key={video.id}>
@@ -71,7 +71,9 @@ export function VideosTable({ videos }) {
                   </a>
                 </td>
                 <td data-label="Canal">{video.channel || 'Sin canal'}</td>
+                <td data-label="Publicado" className="number-cell">{formatPublished(video)}</td>
                 <td data-label="Vistas" className="number-cell">{formatViews(video.views)}</td>
+                <td data-label="Vistas por día" className="number-cell velocity-cell">{formatViewsPerDay(video.views_per_day)}</td>
                 <td data-label="Duración" className="number-cell">{video.duration_text || '—'}</td>
                 <td><a className="external-link" href={video.url} target="_blank" rel="noreferrer" aria-label={`Abrir ${video.title}`}><Icon name="external" size={17} /></a></td>
               </tr>

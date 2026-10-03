@@ -52,10 +52,14 @@ class YouTubeTrendAnalyzer(BaseAnalyzer):
         videos_formatted = []
         for i, item in enumerate(content, 1):
             views = item.get_meta("view_count", 0)
+            published = item.get_meta("published_text", "Unknown")
+            views_per_day = item.get_meta("views_per_day")
+            velocity = f"{views_per_day:,.0f}/day" if views_per_day is not None else "Unknown"
             duration = item.get_meta("duration_text", "N/A")
             author = item.author_name or "Unknown"
             videos_formatted.append(
-                f"{i}. Title: \"{item.title}\" | Channel: {author} | Views: {views:,} | Duration: {duration}"
+                f"{i}. Title: \"{item.title}\" | Channel: {author} | Views: {views:,} "
+                f"| Published: {published} | Views/day: {velocity} | Duration: {duration}"
             )
 
         videos_data_str = "\n".join(videos_formatted)

@@ -6,6 +6,21 @@ export function formatViews(value) {
   }).format(views)
 }
 
+export function formatViewsPerDay(value) {
+  if (value === null || value === undefined) return '—'
+  return `${formatViews(value)}/día`
+}
+
+export function formatPublished(video) {
+  if (video.published_text) return video.published_text
+  if (!video.published_at) return '—'
+  return new Intl.DateTimeFormat('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(video.published_at))
+}
+
 export function getFriendlyError(error) {
   const message = error || 'Ocurrió un error inesperado.'
   const normalized = message.toLowerCase()
