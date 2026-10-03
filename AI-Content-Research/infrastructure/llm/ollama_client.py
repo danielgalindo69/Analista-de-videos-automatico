@@ -76,7 +76,7 @@ class OllamaClient:
     # Public API
     # ------------------------------------------------------------------
 
-    async def generate(self, request: LLMRequest) -> LLMResponse:
+    async def generate(self, model: str, request: LLMRequest) -> LLMResponse:
         """
         Generate a completion for the given request (non-streaming).
 
@@ -91,11 +91,6 @@ class OllamaClient:
             LLMModelNotFoundError: If the requested model is not available
             LLMError: For other LLM-related failures
         """
-        model = request.model_used if hasattr(request, "model_used") else None  # type: ignore[attr-defined]
-        # model is injected by the router before calling generate()
-        if not model:
-            raise LLMError("No model specified in request. Use LLMRouter to route requests.")
-
         payload = self._build_generate_payload(model, request)
         logger.debug(
             "LLM generate | model={model} task={task} prompt_chars={chars}",
@@ -110,6 +105,7 @@ class OllamaClient:
 
         return LLMResponse(
             content=raw.get("response", ""),
+            provider_used="ollama",
             model_used=model,
             task_type=request.task_type,
             tokens_prompt=raw.get("prompt_eval_count", 0),
@@ -297,4 +293,3 @@ class OllamaClient:
                 f"Ollama returned HTTP {response.status_code}: {body}",
                 context={"status_code": response.status_code, "model": model},
             )
-

@@ -11,7 +11,7 @@ All settings are immutable after initialization (frozen=True).
 """
 
 from functools import lru_cache
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +50,16 @@ class LLMModelSettings(BaseSettings):
         default="deepseek-r1:8b",
         description="Model for reasoning, pattern detection, hypothesis validation",
     )
+
+
+class GeminiSettings(BaseSettings):
+    """Optional Gemini API configuration used as a fallback to session credentials."""
+
+    model_config = SettingsConfigDict(env_prefix="GEMINI_", extra="ignore")
+
+    api_key: SecretStr | None = Field(default=None)
+    base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta")
+    timeout_seconds: int = Field(default=120, gt=0)
 
 
 class BrowserSettings(BaseSettings):
@@ -111,6 +121,7 @@ class AppSettings(BaseSettings):
 
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     models: LLMModelSettings = Field(default_factory=LLMModelSettings)
+    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
     browser: BrowserSettings = Field(default_factory=BrowserSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
