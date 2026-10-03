@@ -6,6 +6,33 @@ export function formatViews(value) {
   }).format(views)
 }
 
+export function formatViewsPerDay(value) {
+  if (value === null || value === undefined) return '—'
+  return `${formatViews(value)}/día`
+}
+
+export function formatPublished(video) {
+  if (!video.published_at) return video.published_text || '—'
+
+  const elapsedSeconds = Math.max(0, (Date.now() - new Date(video.published_at).getTime()) / 1_000)
+  const ranges = [
+    ['year', 31_536_000],
+    ['month', 2_592_000],
+    ['week', 604_800],
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ]
+  const formatter = new Intl.RelativeTimeFormat('es', { numeric: 'auto' })
+
+  for (const [unit, seconds] of ranges) {
+    if (elapsedSeconds >= seconds) {
+      return formatter.format(-Math.max(1, Math.round(elapsedSeconds / seconds)), unit)
+    }
+  }
+  return 'ahora'
+}
+
 export function getFriendlyError(error) {
   const message = error || 'Ocurrió un error inesperado.'
   const normalized = message.toLowerCase()

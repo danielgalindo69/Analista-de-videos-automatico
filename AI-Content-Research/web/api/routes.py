@@ -38,6 +38,24 @@ class AnalyzeRequest(BaseModel):
     max_results: int = 10
 
 
+def serialize_video(video) -> dict:
+    """Stable API representation shared by search and streaming analysis."""
+    return {
+        "id": str(video.id),
+        "title": str(video.title),
+        "url": str(video.url) if video.url else "",
+        "channel": str(video.author_name or ""),
+        "views": video.get_meta("view_count", 0),
+        "published_at": video.published_at.isoformat() if video.published_at else None,
+        "published_text": video.get_meta("published_text"),
+        "age_days": video.get_meta("age_days"),
+        "views_per_day": video.get_meta("views_per_day"),
+        "duration_text": str(video.get_meta("duration_text", "")),
+        "duration_seconds": video.get_meta("duration_seconds", 0),
+        "is_short": bool(video.get_meta("is_short", False)),
+    }
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/info")
@@ -61,19 +79,7 @@ async def search_youtube(req: SearchRequest):
     return {
         "query": req.query,
         "total": len(items),
-        "videos": [
-            {
-                "id": str(v.id),
-                "title": str(v.title),
-                "url": str(v.url) if v.url else "",
-                "channel": str(v.author_name or ""),
-                "views": v.get_meta("view_count", 0),
-                "duration_text": str(v.get_meta("duration_text", "")),
-                "duration_seconds": v.get_meta("duration_seconds", 0),
-                "is_short": bool(v.get_meta("is_short", False)),
-            }
-            for v in items
-        ],
+        "videos": [serialize_video(video) for video in items],
     }
 
 
@@ -90,7 +96,7 @@ async def analyze_youtube(req: AnalyzeRequest):
 
         try:
             # Phase 1: Scraping
-            yield sse("progress", {"phase": 1, "message": f"🔍 Scraping YouTube for '{req.query}'..."})
+            yield sse("progress", {"phase": 1, "message": f"Explorando YouTube para '{req.query}'..."})
             platform = YouTubePlatform()
             items = await platform.search(query=req.query, max_results=req.max_results)
 
@@ -98,19 +104,7 @@ async def analyze_youtube(req: AnalyzeRequest):
                 yield sse("error", {"message": "No videos found. Try a different query."})
                 return
 
-            videos_payload = [
-                {
-                    "id": str(v.id),
-                    "title": str(v.title),
-                    "url": str(v.url) if v.url else "",
-                    "channel": str(v.author_name or ""),
-                    "views": v.get_meta("view_count", 0),
-                    "duration_text": str(v.get_meta("duration_text", "")),
-                    "duration_seconds": v.get_meta("duration_seconds", 0),
-                    "is_short": bool(v.get_meta("is_short", False)),
-                }
-                for v in items
-            ]
+            videos_payload = [serialize_video(video) for video in items]
             yield sse("videos", {"videos": videos_payload, "total": len(items)})
 
             analysis_req = AnalysisRequest(
@@ -121,13 +115,13 @@ async def analyze_youtube(req: AnalyzeRequest):
             )
 
             # Phase 2: Title Analysis (Qwen3)
-            yield sse("progress", {"phase": 2, "message": "🧠 Analyzing title patterns with Qwen3 14B..."})
+            yield sse("progress", {"phase": 2, "message": "Analizando patrones de títulos con Qwen3 14B..."})
             title_result = await YouTubeTitleAnalyzer().analyze(analysis_req, items)
             title_text = title_result.findings[0].description if title_result.findings else ""
             yield sse("title_analysis", {"content": title_text})
 
             # Phase 3: Trend Analysis (DeepSeek R1)
-            yield sse("progress", {"phase": 3, "message": "🔬 Reasoning market trends with DeepSeek R1 8B..."})
+            yield sse("progress", {"phase": 3, "message": "Detectando tendencias con DeepSeek R1 8B..."})
             trend_result = await YouTubeTrendAnalyzer().analyze(analysis_req, items)
             trend_text = trend_result.findings[0].description if trend_result.findings else ""
             yield sse("trend_analysis", {"content": trend_text})
@@ -138,7 +132,7 @@ async def analyze_youtube(req: AnalyzeRequest):
             path2 = await storage.save_analysis(trend_result)
 
             yield sse("done", {
-                "message": "✅ Analysis complete!",
+                "message": "Análisis completado.",
                 "report_paths": [str(path1), str(path2)],
             })
 

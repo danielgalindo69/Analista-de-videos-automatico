@@ -47,6 +47,21 @@ class YouTubeVideo(ContentItem):
     def comment_count(self) -> int | None:
         return self.metadata.get("comment_count")
 
+    @property
+    def published_text(self) -> str | None:
+        """Relative publication label exactly as displayed by YouTube."""
+        return self.metadata.get("published_text")
+
+    @property
+    def age_days(self) -> int | None:
+        """Estimated age in whole days, when publication data is available."""
+        return self.metadata.get("age_days")
+
+    @property
+    def views_per_day(self) -> float | None:
+        """Average view velocity based on the estimated publication date."""
+        return self.metadata.get("views_per_day")
+
 
 class YouTubeChannel(BaseModel):
     """

@@ -1,6 +1,6 @@
 import { Header } from './components/Header'
 import { ResearchForm } from './components/ResearchForm'
-import { AnalysisResults, EmptyState, ErrorNotice, PipelineCard, ProgressPanel, VideosTable } from './components/Workspace'
+import { EmptyState, ErrorNotice, PipelineCard, ProgressPanel, ReportWorkspace } from './components/Workspace'
 import { Icon } from './components/Icon'
 import { useAnalysisStream } from './hooks/useAnalysisStream'
 import { useSystemInfo } from './hooks/useSystemInfo'
@@ -29,10 +29,14 @@ export default function App() {
           <ProgressPanel messages={analysis.loading ? analysis.messages : []} />
           <ErrorNotice error={analysis.error} />
           {analysis.hasResults ? (
-            <>
-              <VideosTable videos={analysis.videos} />
-              <AnalysisResults info={system.info} titleAnalysis={analysis.titleAnalysis} trendAnalysis={analysis.trendAnalysis} titleLoading={analysis.titleLoading} trendLoading={analysis.trendLoading} />
-            </>
+            <ReportWorkspace
+              videos={analysis.videos}
+              info={system.info}
+              titleAnalysis={analysis.titleAnalysis}
+              trendAnalysis={analysis.trendAnalysis}
+              titleLoading={analysis.titleLoading}
+              trendLoading={analysis.trendLoading}
+            />
           ) : !analysis.loading && !analysis.error ? <EmptyState /> : null}
         </div>
       </main>
