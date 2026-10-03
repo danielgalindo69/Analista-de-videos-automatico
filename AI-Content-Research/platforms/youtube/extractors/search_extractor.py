@@ -176,6 +176,16 @@ def parse_view_count(text: str) -> int:
         re.IGNORECASE,
     )
     if not match:
+        # YouTube's compact metadata currently omits the label and returns
+        # two lines such as "2.5M\n5y ago". Only inspect the first line so the
+        # publication age can never be mistaken for a view count.
+        first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+        match = re.fullmatch(
+            r"(?P<number>\d[\d.,]*)\s*(?P<unit>k|m|b|mil)?",
+            first_line,
+            re.IGNORECASE,
+        )
+    if not match:
         return 0
 
     number = match.group("number")
@@ -222,6 +232,10 @@ _RELATIVE_DATE_PATTERNS = (
         r"(?P<unit>segundo|minuto|hora|d[ií]a|semana|mes|a[ñn]o)(?:s|es)?",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"(?P<value>\d+)\s*(?P<unit>min|mo|s|m|h|d|w|y)\s+ago",
+        re.IGNORECASE,
+    ),
 )
 
 _UNIT_SECONDS = {
@@ -241,6 +255,14 @@ _UNIT_SECONDS = {
     "year": 31_536_000,
     "ano": 31_536_000,
     "año": 31_536_000,
+    "s": 1,
+    "min": 60,
+    "m": 60,
+    "h": 3_600,
+    "d": 86_400,
+    "w": 604_800,
+    "mo": 2_592_000,
+    "y": 31_536_000,
 }
 
 
@@ -321,8 +343,14 @@ def calculate_views_per_day(
     *,
     now: datetime | None = None,
 ) -> float | None:
-    """Calculate average views per day; use one day as the minimum denominator."""
-    age_days = calculate_age_days(published_at, now=now)
-    if age_days is None:
+    """Calculate average daily velocity, including content newer than one day."""
+    if published_at is None:
         return None
-    return round(max(0, view_count) / max(1, age_days), 2)
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=timezone.utc)
+
+    elapsed_days = max((reference - published_at).total_seconds() / 86_400, 1 / 24)
+    return round(max(0, view_count) / elapsed_days, 2)

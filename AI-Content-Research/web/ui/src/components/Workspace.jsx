@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Icon } from './Icon'
 import { formatPublished, formatViews, formatViewsPerDay, getFriendlyError } from '../utils/formatters'
@@ -99,14 +100,55 @@ function AnalysisCard({ eyebrow, title, model, icon, content, loading, tone }) {
   )
 }
 
-export function AnalysisResults({ info, titleAnalysis, trendAnalysis, titleLoading, trendLoading }) {
-  if (!(titleLoading || trendLoading || titleAnalysis || trendAnalysis)) return null
+export function ReportWorkspace({ videos, info, titleAnalysis, trendAnalysis, titleLoading, trendLoading }) {
+  const [activeTab, setActiveTab] = useState('videos')
+  const tabs = [
+    { id: 'videos', label: 'Videos', icon: 'film', available: videos.length > 0 },
+    { id: 'titles', label: 'Patrones de títulos', icon: 'spark', available: titleLoading || Boolean(titleAnalysis) },
+    { id: 'trends', label: 'Oportunidades', icon: 'trend', available: trendLoading || Boolean(trendAnalysis) },
+  ]
+
   return (
-    <section className="results-block">
-      <div className="results-heading"><div><span className="section-kicker">Lectura estratégica</span><h2>Hallazgos de la IA</h2></div></div>
-      <div className="analysis-grid">
-        <AnalysisCard eyebrow="Lenguaje" title="Patrones de títulos" model={info.extraction_model || 'Qwen3 14B'} icon="spark" content={titleAnalysis} loading={titleLoading} tone="amber" />
-        <AnalysisCard eyebrow="Mercado" title="Tendencias y oportunidades" model={info.reasoning_model || 'DeepSeek R1 8B'} icon="trend" content={trendAnalysis} loading={trendLoading} tone="blue" />
+    <section className="report-workspace" aria-label="Resultados de la investigación">
+      <div className="results-heading report-workspace__heading">
+        <div><span className="section-kicker">Investigación completa</span><h2>Explora el reporte por secciones</h2></div>
+        <span className="result-total">{videos.length} videos analizados</span>
+      </div>
+
+      <div className="report-tabs" role="tablist" aria-label="Secciones del reporte">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            id={`report-tab-${tab.id}`}
+            className={`report-tab ${activeTab === tab.id ? 'report-tab--active' : ''}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`report-panel-${tab.id}`}
+            disabled={!tab.available}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <Icon name={tab.icon} size={15} />
+            {tab.label}
+            {!tab.available && <span className="report-tab__pending">Pendiente</span>}
+          </button>
+        ))}
+      </div>
+
+      <div
+        id={`report-panel-${activeTab}`}
+        className={`report-panel ${activeTab === 'videos' ? '' : 'report-reading-pane'}`}
+        role="tabpanel"
+        aria-labelledby={`report-tab-${activeTab}`}
+        tabIndex={0}
+      >
+        {activeTab === 'videos' && <VideosTable videos={videos} />}
+        {activeTab === 'titles' && (
+          <AnalysisCard eyebrow="Lenguaje" title="Patrones de títulos" model={info.extraction_model || 'Qwen3 14B'} icon="spark" content={titleAnalysis} loading={titleLoading} tone="amber" />
+        )}
+        {activeTab === 'trends' && (
+          <AnalysisCard eyebrow="Mercado" title="Tendencias y oportunidades" model={info.reasoning_model || 'DeepSeek R1 8B'} icon="trend" content={trendAnalysis} loading={trendLoading} tone="blue" />
+        )}
       </div>
     </section>
   )

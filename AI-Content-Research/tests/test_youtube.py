@@ -32,6 +32,8 @@ def test_view_count_parsing():
     assert parse_view_count("1,5 M de visualizaciones") == 1_500_000
     assert parse_view_count("2,3 mil visualizaciones") == 2_300
     assert parse_view_count("10B views") == 10_000_000_000
+    assert parse_view_count("2.5M\n5y ago") == 2_500_000
+    assert parse_view_count("1.4K\n3h ago") == 1_400
     assert parse_view_count("hace 2 días") == 0
     print("[OK] view_count_parsing passed")
 
@@ -48,14 +50,18 @@ def test_relative_publication_parsing():
 
     english_label = extract_published_text("1.5M views\n2 months ago")
     spanish_label = extract_published_text("450 K visualizaciones\nhace 3 días")
+    compact_label = extract_published_text("1.4K\n3h ago")
 
     assert english_label == "2 months ago"
     assert spanish_label == "hace 3 días"
+    assert compact_label == "3h ago"
     assert parse_relative_published_at(english_label, now=reference) == datetime.fromisoformat(
         "2026-08-03T12:00:00+00:00"
     )
     published_at = parse_relative_published_at(spanish_label, now=reference)
     assert calculate_views_per_day(90_000, published_at, now=reference) == 30_000
+    compact_published_at = parse_relative_published_at(compact_label, now=reference)
+    assert calculate_views_per_day(1_400, compact_published_at, now=reference) == 11_200
     assert calculate_views_per_day(12_000, None, now=reference) is None
     print("[OK] relative_publication_parsing passed")
 

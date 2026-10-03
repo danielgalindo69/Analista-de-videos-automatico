@@ -96,7 +96,7 @@ async def analyze_youtube(req: AnalyzeRequest):
 
         try:
             # Phase 1: Scraping
-            yield sse("progress", {"phase": 1, "message": f"🔍 Scraping YouTube for '{req.query}'..."})
+            yield sse("progress", {"phase": 1, "message": f"Explorando YouTube para '{req.query}'..."})
             platform = YouTubePlatform()
             items = await platform.search(query=req.query, max_results=req.max_results)
 
@@ -115,13 +115,13 @@ async def analyze_youtube(req: AnalyzeRequest):
             )
 
             # Phase 2: Title Analysis (Qwen3)
-            yield sse("progress", {"phase": 2, "message": "🧠 Analyzing title patterns with Qwen3 14B..."})
+            yield sse("progress", {"phase": 2, "message": "Analizando patrones de títulos con Qwen3 14B..."})
             title_result = await YouTubeTitleAnalyzer().analyze(analysis_req, items)
             title_text = title_result.findings[0].description if title_result.findings else ""
             yield sse("title_analysis", {"content": title_text})
 
             # Phase 3: Trend Analysis (DeepSeek R1)
-            yield sse("progress", {"phase": 3, "message": "🔬 Reasoning market trends with DeepSeek R1 8B..."})
+            yield sse("progress", {"phase": 3, "message": "Detectando tendencias con DeepSeek R1 8B..."})
             trend_result = await YouTubeTrendAnalyzer().analyze(analysis_req, items)
             trend_text = trend_result.findings[0].description if trend_result.findings else ""
             yield sse("trend_analysis", {"content": trend_text})
@@ -132,7 +132,7 @@ async def analyze_youtube(req: AnalyzeRequest):
             path2 = await storage.save_analysis(trend_result)
 
             yield sse("done", {
-                "message": "✅ Analysis complete!",
+                "message": "Análisis completado.",
                 "report_paths": [str(path1), str(path2)],
             })
 

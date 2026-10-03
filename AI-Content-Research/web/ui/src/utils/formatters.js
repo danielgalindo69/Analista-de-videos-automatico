@@ -12,13 +12,25 @@ export function formatViewsPerDay(value) {
 }
 
 export function formatPublished(video) {
-  if (video.published_text) return video.published_text
-  if (!video.published_at) return '—'
-  return new Intl.DateTimeFormat('es-CO', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(video.published_at))
+  if (!video.published_at) return video.published_text || '—'
+
+  const elapsedSeconds = Math.max(0, (Date.now() - new Date(video.published_at).getTime()) / 1_000)
+  const ranges = [
+    ['year', 31_536_000],
+    ['month', 2_592_000],
+    ['week', 604_800],
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ]
+  const formatter = new Intl.RelativeTimeFormat('es', { numeric: 'auto' })
+
+  for (const [unit, seconds] of ranges) {
+    if (elapsedSeconds >= seconds) {
+      return formatter.format(-Math.max(1, Math.round(elapsedSeconds / seconds)), unit)
+    }
+  }
+  return 'ahora'
 }
 
 export function getFriendlyError(error) {
