@@ -51,6 +51,14 @@ class LLMConnectionError(LLMError):
     """Raised when the Ollama service cannot be reached."""
 
 
+class LLMAuthenticationError(LLMError):
+    """Raised when a provider rejects its credential."""
+
+
+class ProviderNotConfiguredError(LLMError):
+    """Raised when a provider requires a credential that is not available."""
+
+
 class LLMModelNotFoundError(LLMError):
     """Raised when the requested model is not available in Ollama."""
 

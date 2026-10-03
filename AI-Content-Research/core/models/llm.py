@@ -55,11 +55,13 @@ class LLMResponse(BaseModel):
     """Represents the response from an LLM call."""
 
     content: str
+    provider_used: str = "ollama"
     model_used: str
     task_type: TaskType
     tokens_prompt: int = 0
     tokens_completion: int = 0
     duration_ms: int = 0
+    finish_reason: str | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
     request_id: str | None = None
 
